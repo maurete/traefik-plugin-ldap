@@ -1,0 +1,62 @@
+---
+version: "3.5"
+
+# Configuración del servidor frontend Traefik. Especifica el container
+# para Traefik y la red Traefik a la que todas las otras aplicaciones
+# se conectan.
+#
+# USO: docker-compose up -d
+
+services:
+  traefik:
+    container_name: traefik
+    image: traefik:v2.3
+    restart: always
+    command:
+      - --providers.docker
+      - --providers.docker.defaultrule=Host(`{{ trimPrefix `/` .Name }}.lndo.site`)
+      - --providers.docker.network=traefik-dev
+      - --api.dashboard=true
+      - --api.insecure=false
+      - --entryPoints.web.address=:80
+      - --experimental.pilot.token=2cb042b4-ec7a-49c9-9211-570c788c4a0a
+      - --experimental.devPlugin.goPath=/plugins/
+      - --experimental.devPlugin.moduleName=github.com/maurete/traefik-plugin-ldap
+      - --log.level=INFO
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./:/plugins/src/github.com/maurete/traefik-plugin-ldap
+    ports:
+      - "80:80"
+    networks:
+      - traefik-dev
+    labels:
+      - traefik.http.routers.api.rule=Host(`frontend.lndo.site`) || Host(`traefik.lndo.site`)
+      - traefik.http.routers.api.service=api@internal
+      - traefik.http.routers.api.middlewares=wl
+      - traefik.http.middlewares.wl.ipwhitelist.sourcerange=0.0.0.0/0
+
+  ldap:
+    image: eumau/openldap:latest
+    environment:
+      LDAP_DOMAIN: example.org
+    networks:
+      - traefik-dev
+    labels:
+      - traefik.enable=false
+
+  hello:
+    image: crccheck/hello-world
+    container_name: hello
+    networks:
+      - traefik-dev
+    labels:
+      - traefik.http.routers.hello.rule=Host(`hello.lndo.site`)
+      - traefik.http.routers.hello.middlewares=ldap
+      - traefik.http.middlewares.ldap.plugin.dev.url=ldap://ldap:389
+      - traefik.http.middlewares.ldap.plugin.dev.userBaseDN=ou=People,dc=example,dc=org
+      - traefik.http.middlewares.ldap.plugin.dev.userAttribute=uid
+
+networks:
+  traefik-dev:
+    name: traefik-dev

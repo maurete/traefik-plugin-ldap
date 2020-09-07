@@ -1,0 +1,6 @@
+---
+displayName: LDAP Plugin
+type: middleware
+import: github.com/maurete/traefik-plugin-ldap
+summary: 'Traefik LDAP Auth plugin'
+testData: {}
